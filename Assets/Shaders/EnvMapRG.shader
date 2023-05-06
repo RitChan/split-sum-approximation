@@ -124,7 +124,7 @@ Shader "Unlit/EnvMapRG"
                 float4 diffuseCol = lerp(surfaceCol, float4(0, 0, 0, 0), _Metallic);
 
                 // Calc env
-                float4 specularEnv = prefilterdEnv(roughness, r);
+                float4 specularEnv = prefilterdEnv(_Roughtness, r);
                 float4 diffuseEnv = prefilterdEnv(0.96, n);
 
                 // Integrate BRDF
