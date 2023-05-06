@@ -2,13 +2,13 @@ Shader "Unlit/EnvMapRG"
 {
     Properties
     {
-        _Color ("Surface Color", Color) = (1, 1, 1, 1)
+        _Color ("Diffuse Color", Color) = (1, 1, 1, 1)
         _MicrofacetIntensity ("Specular", Range(0, 1)) = 0.5
         _Roughtness ("Roughness", Range(0, 1)) = 0.5
         _Metallic ("Metallic", Range(0, 1)) = 0
         _EnvX ("Rotate Env X", Range(0, 1)) = 0
         _EnvY ("Rotate Env Y", Range(0, 1)) = 0
-        _MainTex ("Texture", 2D) = "white" {}
+        _MainTex ("Texture", 2D) = "black" {}
         _ENV ("Environment", 2D) = "white" {}
         _BRDF ("BRDF Tex", 2D) = "white" {}
     }
@@ -19,13 +19,14 @@ Shader "Unlit/EnvMapRG"
 
         Pass
         {
-            Tags { "LightMode"="ForwardBase" }
+            Tags { "LightMode"="ForwardBase"}
             HLSLPROGRAM
             #pragma multi_compile_fwdbase
             #pragma vertex vert
-            #pragma fragment frag
+            #pragma fragment frag 
             #include "UnityCG.cginc"
             #include "AutoLight.cginc"
+            #pragma multi_compile_fwdbase
             #define PI 3.1415927
 
             struct appdata
@@ -39,11 +40,10 @@ Shader "Unlit/EnvMapRG"
             struct v2f
             {
                 float4 pos : SV_POSITION;
-                float2 uv : TEXCOORD0;
                 float3 worldNormal : NORMAL;
-                float3 worldPos : TEXCOORD2;
-                float4 col : COLOR;
-                SHADOW_COORDS(1)
+                float2 uv : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
+                LIGHTING_COORDS(3, 4)
             };
 
             sampler2D _MainTex;
@@ -103,8 +103,7 @@ Shader "Unlit/EnvMapRG"
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.worldNormal = UnityObjectToWorldNormal(v.normal);
                 o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-                o.col = v.col;
-                TRANSFER_SHADOW(o);
+                TRANSFER_VERTEX_TO_FRAGMENT(o);
                 return o;
             }
 
@@ -114,13 +113,15 @@ Shader "Unlit/EnvMapRG"
                 float3 n = normalize(i.worldNormal);
                 float3 r = normalize(reflect(v, n));
 
-                // Copy params
-                float roughness = _Roughtness;
-                float metallic = _Metallic;
-                float specular_intensity = _MicrofacetIntensity;
-
-                // Surface
-                float4 surfaceCol = _Color * tex2D(_MainTex, i.uv);
+                // Diffuse
+                float4 texCol = tex2D(_MainTex, i.uv);
+                float4 surfaceCol = float4(0, 0, 0, 0);
+                if (texCol.w == 0)
+                    surfaceCol = _Color;
+                else
+                    surfaceCol = texCol;
+                float4 F0 = lerp(0.04, surfaceCol, _Metallic);
+                float4 diffuseCol = lerp(surfaceCol, float4(0, 0, 0, 0), _Metallic);
 
                 // Calc env
                 float4 specularEnv = prefilterdEnv(roughness, r);
@@ -128,50 +129,51 @@ Shader "Unlit/EnvMapRG"
 
                 // Integrate BRDF
                 float cos_v = saturate(dot(n, v));
-                float4 F0 = lerp(float4(0, 0, 0, 1), surfaceCol, metallic);
-                float4 specularCol = integrateMicrofacet(roughness, cos_v, F0);
+                float4 specularCol = integrateMicrofacet(_Roughtness, cos_v, F0);
 
                 // Shade
-                float4 diffuseRadiance = diffuseEnv * lerp(surfaceCol, float4(0, 0, 0, 1), metallic);
-                float4 microfacetRadiance = specularEnv * specular_intensity * specularCol;
-
+                float4 diffuseRadiance = diffuseEnv * diffuseCol;
+                float4 microfacetRadiance = specularEnv * _MicrofacetIntensity * specularCol;
                 float4 col = diffuseRadiance + microfacetRadiance;
-                return col;
+
+                // With Shadow
+                float attenuation = LIGHT_ATTENUATION(i);
+                return col * attenuation;
             }
             ENDHLSL
         }
 
-        Pass
-        {
-            Tags {"LightMode"="ShadowCaster"}
-            HLSLPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma target 2.0
-            #pragma multi_compile_shadowcaster
-            #pragma multi_compile_instansing
-            #include "UnityCG.cginc"
+		Pass//产生阴影的通道(物体透明也产生阴影)
+		{
+			Tags { "LightMode" = "ShadowCaster" }
 
-            struct v2f 
-            {
-                V2F_SHADOW_CASTER;
-                UNITY_VERTEX_OUTPUT_STEREO
-            };
+			CGPROGRAM
+			#pragma vertex vert
+			#pragma fragment frag
+			#pragma target 2.0
+			#pragma multi_compile_shadowcaster
+			#pragma multi_compile_instancing // allow instanced shadow pass for most of the shaders
+			#include "UnityCG.cginc"
 
-            v2f vert(appdata_base v)
-            {
-                v2f o;
-                UNITY_SETUP_INSTANCE_ID(v);
-                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
-                TRANSFER_SHADOW_CASTER_NORMALOFFSET(o);
-                return o;
-            }
+			struct v2f {
+				V2F_SHADOW_CASTER;
+				UNITY_VERTEX_OUTPUT_STEREO
+			};
 
-            float4 frag(v2f i) : SV_TARGET
-            {
-                return 0;
-            }
-            ENDHLSL
-        }
+			v2f vert(appdata_base v)
+			{
+				v2f o;
+				UNITY_SETUP_INSTANCE_ID(v);
+				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+				TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
+				return o;
+			}
+
+			float4 frag(v2f i) : SV_Target
+			{
+				SHADOW_CASTER_FRAGMENT(i)
+			}
+			ENDCG
+		}
     }
 }
