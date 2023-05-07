@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Material_0_qds_3020_tex0_e676e4b9.dat.png_c
-  m_Shader: {fileID: 4800000, guid: b2322e8cd5820104f88d6ccc86a5979d, type: 3}
+  m_Shader: {fileID: 4800000, guid: 56cd62dec1b87d749ac570d6f467a5b4, type: 3}
   m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
@@ -80,7 +80,7 @@ Material:
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
-    - _Roughtness: 0.115
+    - _Roughtness: 0.34
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
