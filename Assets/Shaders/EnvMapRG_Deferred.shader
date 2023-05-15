@@ -79,6 +79,9 @@ Shader "Unlit/EnvMapRG_Deferred"
 
                 fout o;
                 o.albedo = float4(diffuseCol.rgb, 1.0);
+                float4 clipPos = mul(UNITY_MATRIX_VP, float4(i.worldPos, 1.0)).xyzw;
+                clipPos /= clipPos.w;
+                o.albedo = float4(diffuseCol.rgb, 1.0);
                 o.specular = float4(F0.rgb, 1 - _Roughtness);
                 o.normal = float4(n * 0.5 + 0.5, 1.0);
                 o.emission = diffuseCol;
